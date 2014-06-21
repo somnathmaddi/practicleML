@@ -1,0 +1,115 @@
+Predict Class of Exercise
+========================================================
+## Abstract
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+In this analysis, we choose 18 kind of features to predict which exercise class they do, 
+and train using random forest (RF) method.
+We find that the expected error rate is about 0.3% in test sample.
+Therefore, we can predict which class of exercise they do.
+
+## Prerequisite
+
+```{r}
+#code is commented because we downloaded the data once
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="pml-training.csv", method="curl");
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="pml-testing.csv", method="curl");
+```
+```{r}
+library(caret)
+```
+
+## Data Preprocessing and Analysis
+
+Loading data and creating partition of training set into two
+- to train model
+- to cross validate
+
+Let's summerize training set picking correct and suitable features to predict
+
+```{r,echo=TRUE}
+raw_training <- read.csv(".//data//pml-training.csv");
+testing  <- read.csv(".//data//pml-testing.csv");
+
+set.seed(1)
+inTrain <- createDataPartition(y=raw_training$classe,p=0.6, list=F)
+training <- raw_training[inTrain, ]
+cv       <- raw_training[-inTrain, ]
+
+summary(training)
+
+```
+
+few patterns of training set that we have for training model.
+
+```{r}
+p1<-qplot(new_window, num_window, data=training)+facet_grid(.~classe)
+p1
+p2<-qplot(yaw_arm, total_accel_arm,data=training)+facet_grid(.~classe)
+p2
+p3<-qplot(roll_arm, pitch_arm,data=training)+facet_grid(.~classe)
+p3
+p4<-qplot(roll_belt, pitch_belt, data=training)+facet_grid(.~classe)
+p4
+```
+
+Features that we select for prediction
+
+```{r}
+input_vars_list <- c("new_window", "num_window", "roll_belt", "pitch_belt", "yaw_belt", 
+  "total_accel_belt", "roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm", 
+    "roll_dumbbell", "pitch_dumbbell", "yaw_dumbbell", "total_accel_dumbbell",
+    "roll_forearm", "pitch_forearm", "yaw_forearm", 
+    "total_accel_forearm");
+	
+exp_input <- function(x){
+  res = x[1];
+    for (i in 2:length(x)){
+            res <- paste(res, " + ", x[i], sep="");
+    }
+    return(res);
+}
+
+missClass <- function(values, prediction){
+  sum( prediction != values )/length(values)
+}
+
+input_vars <- exp_input(input_vars_list)
+	
+```	
+
+Creating model by random forest.
+```{r}
+
+set.seed(2);
+
+st <- Sys.time();
+modFit <- train( eval(parse(text=paste("classe ~", input_vars, sep="")))
+  ,data=training, method="rf")
+et <- Sys.time();
+et-st
+```
+
+##Results
+check out error rate for training set and cross validation set
+
+```{r}
+missClass(training$classe, predict(modFit, training))
+
+missClass(cv$classe, predict(modFit, cv))
+
+```
+
+Lets predict test samples using our model.
+
+```{r}
+# test sample
+answers <- predict(modFit, testing)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
